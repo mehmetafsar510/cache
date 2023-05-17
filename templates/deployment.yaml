@@ -1,0 +1,71 @@
+{{- if .Values.cache.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels: {{ include "ks.labels" (merge (dict "service" .Values.cache.appKubernetesIoService) $) | nindent 4 }}
+  name: cache
+spec:
+  replicas: {{ $.Values.cache.replicas }}
+  selector:
+    matchLabels:
+      {{- include "ks.selectorLabels" (merge (dict "service" .Values.cache.appKubernetesIoService) $) | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        {{- include "ks.labels" (merge (dict "service" .Values.cache.appKubernetesIoService) $) | nindent 8 }}
+    spec:
+      volumes:
+        - name: {{ .Values.cache.volume_name }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.cache.volume_claim_name }}
+        - name: {{ .Values.cache.config.volume_name }}
+          configMap:
+            name: {{ .Values.cache.config.configMap.volume_name }}
+            items:
+            - key: {{ .Values.cache.config.items.key }}
+              path: {{ .Values.cache.config.items.path }}
+        - name: {{ .Values.cache.acl.volume_name }}
+          configMap:
+            name: {{ .Values.cache.acl.configMap.volume_name }}
+            items:
+            - key: {{ .Values.cache.acl.items.key }}
+              path: {{ .Values.cache.acl.items.path }}
+      initContainers:
+        - name: init-config-server
+          image: busybox
+          command: ['sh', '-c', 'until nc -z config:8501; do echo waiting for config server; sleep 2; done;']
+      containers:
+        - name: {{ .Values.cache.appKubernetesIoService }}            
+          image: {{ .Values.cache.image }}
+          command:
+            - redis-server
+            - "/conf/redis.conf"
+          env:
+            - name: MASTER
+              value: "true"
+          volumeMounts:
+            - mountPath: "{{ .Values.cache.mount_path }}"
+              name: {{ .Values.cache.volume_name }}
+            - mountPath: "{{ .Values.cache.config.mount_path }}"
+              name: {{ .Values.cache.config.volume_name }}
+            - mountPath: "{{ .Values.cache.acl.mount_path }}"
+              name: {{ .Values.cache.acl.volume_name }}
+          resources:
+            limits:
+              memory: {{ .Values.cache.resources.limits.memory }}
+              cpu: {{ .Values.cache.resources.limits.cpu }}
+            requests:
+              cpu: {{ .Values.cache.resources.requests.cpu }}
+              memory: {{ .Values.cache.resources.requests.memory }}           
+          ports:
+            - containerPort: {{ .Values.cache.targetPort }}
+      {{- if and $.Values.global.imagePullSecrets }}
+      imagePullSecrets:
+      {{- range $.Values.global.imagePullSecrets }}
+        - name: {{ . }}
+      {{- end }}
+      {{- end }}
+      restartPolicy: Always
+{{- end }}

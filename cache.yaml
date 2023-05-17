@@ -1,0 +1,45 @@
+global:
+  imagePullSecrets:
+    - registry-azurecr-epara
+     
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 80
+    #targetMemoryUtilizationPercentage: 512Mi
+
+cache:
+  config:
+    mount_path: /conf
+    volume_name: config
+    configMap:
+      volume_name: redis-config
+    items:
+      key: redis-config
+      path: redis.conf
+  acl:
+    mount_path: /redis-acl
+    volume_name: config-acl
+    configMap:
+      volume_name: redis-acl
+    items:
+      key: users.acl
+      path: users.acl
+  nameSuffix: cache
+  enabled: true
+  replicas: 1
+  appKubernetesIoService: cache
+  port: 8379
+  targetPort: 6379
+  image: harbor.finartz.dev/wallet/wallet_cache
+  volume_claim_name: cache-volume
+  mount_path: /data
+  volume_name: cache-volume
+  resources:
+    limits:
+      memory: 500Mi
+      cpu: 250m
+    requests:
+      memory: 250Mi
+      cpu: 250m
